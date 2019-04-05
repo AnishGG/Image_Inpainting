@@ -1,0 +1,7 @@
+These files were run on ada. 
+We don't have cuda access on abacus yet.
+
+Need to import cuda module on ada before running.
+`module load cuda/10.0`
+`make`
+`./image_inpaint`
