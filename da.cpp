@@ -32,6 +32,7 @@ void __f(const char* names, Arg1&& arg1, Args&&... args){
 int N, m, n;
 const double lambda = 1e-4, rho = 0.05, beta = 0.01, epsilon = 1e-10;
 const double inv_epsilon = 1e10;
+const int T = 10, MAX_BFGS = 10;
 
 double sigmoid(double x){
     double e = exp((double) x);
@@ -176,6 +177,22 @@ void feature(vd &U, vvvd &W_list, vvd &b_list){
     }
 }
 
+void inverse_feature(vd &U, vvvd &W_list, vvd &b_list){
+    int cnt = 0;
+    for(auto &W: W_list){
+        for(auto &row: W){
+            for(auto &elem: row){
+                elem = U[cnt++];
+            } 
+        }
+    }
+    for(auto &b: b_list){
+        for(auto &elem: b){
+            elem = U[cnt++];
+        }
+    }
+}
+
 double error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     double loss = 0; 
     vvd *v, h[2];
@@ -194,6 +211,10 @@ double error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
 }
 
 void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bool sda){
+    bool push = 0;
+    int cnt = 0;
+    if(sz(gd) == 0)
+        push = 1;
     for(auto &W:W_list){
         for(auto &row: W){
             for(auto &elem: row){
@@ -202,7 +223,9 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 double new_loss = error(W_list, b_list, y, x, sda);
                 elem -= delta;
                 double grad = (inv_epsilon / elem) * (new_loss - loss) + 2*elem;
-                gd.PB(grad); 
+                if(push)
+                    gd.PB(0);
+                gd[cnt++] = grad;
             }
         }
     }
@@ -213,8 +236,97 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 double new_loss = error(W_list, b_list, y, x, sda);
                 elem -= delta;
                 double grad = (inv_epsilon / elem) * (new_loss - loss);
-                gd.PB(grad); 
+                if(push)
+                    gd.PB(0);
+                gd[cnt++] = grad;
         }
+    }
+}
+
+void vec_sum(vd &ret, double a, vd &x, double b, vd &y){
+    assert(sz(x) == sz(y));
+    bool push = 0;
+    if(sz(ret) == 0)
+        push = 1;
+    rep(i, 0, sz(x)){
+        if(push)
+            ret.PB(0);
+        ret[i] = a * x[i] + b * y[i];
+    }
+}
+
+double dot_product(vd &x, vd &y){
+    double ret = 0;
+    rep(i, 0, sz(x))
+        ret += x[i]*y[i];
+    return ret;
+}
+
+void point_wise(vd &ret, vd &x, vd &y, double c){
+    assert(sz(x) == sz(y));
+    rep(i, 0, sz(x)){
+        ret.PB(x[i]*y[i]*c);
+    }
+}
+
+void bfgsMultiply(vvd &S, vvd &Y, vd &d){
+    int num_itr = sz(S);
+    vd alpha;
+    rep(i, num_itr, 1){
+        double alpha_i, rho_i;
+        rho_i = dot_product(S[i], Y[i]);
+        alpha_i = rho_i * dot_product(S[i], d); 
+        alpha.PB(alpha_i);
+        vec_sum(d, 1, d, -alpha_i, Y[i]);
+    }
+    rep(i, 1, num_itr){
+        double beta, rho_i; 
+        rho_i = dot_product(S[i], Y[i]);
+        beta = rho_i * dot_product(Y[i], d);
+        vec_sum(d, 1, d, (alpha[i] - beta), S[i]);
+    }
+}
+
+void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+    vvd S, Y;
+    vd d, U[2], gd[2];
+    double loss = 0, alpha = 1;
+    bool converged = 0, use = 0;
+    S.PB(vector<double>(0)), Y.PB(vector<double>(0));
+    feature(U[use], W_list, b_list);
+
+    loss = error(W_list, b_list, y, x, sda);
+    trace(loss, frob_norm(W_list));
+    gradient(gd[use], W_list, b_list, y, x, loss, sda);
+
+    for(auto i: gd[use])  d.PB(i);
+
+    for(int itr = 0, idx = -1; itr != T; itr++){
+        vec_sum(U[1 - use], 1, U[use], -alpha, d);
+        inverse_feature(U[1 - use], W_list, b_list);
+
+        trace("U");
+        for(auto i: U[1 - use])
+            trace(i);
+        loss = error(W_list, b_list, y, x, sda);
+        trace(loss, frob_norm(W_list));
+
+        gradient(gd[1 - use], W_list, b_list, y, x, loss, sda);
+
+        if(itr >= MAX_BFGS)
+            S.erase(S.begin()), Y.erase(Y.begin());
+        else
+            idx++;
+        S.PB(vector<double>(0)), Y.PB(vector<double>(0));   // As this is n+1th 
+
+        trace("1", itr);
+        vec_sum(S[idx+1], 1, U[1 - use], -1, U[use]);
+        trace("2", itr);
+        vec_sum(Y[idx+1], 1, gd[1 - use], -1, gd[use]);
+        trace(idx, sz(S[idx]), sz(S[idx+1]), sz(Y[idx]), sz(Y[idx+1]));
+         
+        bfgsMultiply(S, Y, d); 
+        use = 1 - use;
     }
 }
 
@@ -230,10 +342,11 @@ int main(){
     vvvd W_list;
     W_list.PB(W1), W_list.PB(W2);
     b_list.PB(b1), b_list.PB(b2);
-    feature(U, W_list, b_list);
+    lbfgs(W_list, b_list, y, x, 0);
+    //feature(U, W_list, b_list);
 
     // Printing 
-    trace(ms_error(y, y_x));
+    /*trace(ms_error(y, y_x));
     trace(frob_norm(W_list));
     trace(recon_loss(h_x));
     trace("U");
@@ -243,6 +356,7 @@ int main(){
     gradient(gd, W_list, b_list, y, x, error(W_list, b_list, y, x, 0), 0);
     trace("gradient");
     for(auto i: gd)
-        trace(i);
+        trace(i);*/
+    
     return 0;
 }
