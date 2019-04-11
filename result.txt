@@ -1,0 +1,21 @@
+"MY ITERATION" : MY ITERATION |  itr : 0 |  loss : 6.87431 |  frob_norm(W_list) : 0.732597 |  loss + frob_norm(W_list) : 7.60691
+"MY ITERATION" : MY ITERATION |  itr : 1 |  loss : 6.8743 |  frob_norm(W_list) : 0.732599 |  loss + frob_norm(W_list) : 7.6069
+"MY ITERATION" : MY ITERATION |  itr : 2 |  loss : 6.8743 |  frob_norm(W_list) : 0.732604 |  loss + frob_norm(W_list) : 7.60691
+"MY ITERATION" : MY ITERATION |  itr : 3 |  loss : 6.87433 |  frob_norm(W_list) : 0.732603 |  loss + frob_norm(W_list) : 7.60693
+"MY ITERATION" : MY ITERATION |  itr : 4 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 5 |  loss : 6.87434 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60698
+"MY ITERATION" : MY ITERATION |  itr : 6 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 7 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 8 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 9 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 10 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 11 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 12 |  loss : 6.87433 |  frob_norm(W_list) : 0.732645 |  loss + frob_norm(W_list) : 7.60697
+"MY ITERATION" : MY ITERATION |  itr : 13 |  loss : 6.87433 |  frob_norm(W_list) : 0.744034 |  loss + frob_norm(W_list) : 7.61836
+"MY ITERATION" : MY ITERATION |  itr : 14 |  loss : 11.7324 |  frob_norm(W_list) : 1.47057e+13 |  loss + frob_norm(W_list) : 1.47057e+13
+"MY ITERATION" : MY ITERATION |  itr : 15 |  loss : -nan |  frob_norm(W_list) : -nan |  loss + frob_norm(W_list) : -nan
+"MY ITERATION" : MY ITERATION |  itr : 16 |  loss : -nan |  frob_norm(W_list) : -nan |  loss + frob_norm(W_list) : -nan
+"MY ITERATION" : MY ITERATION |  itr : 17 |  loss : -nan |  frob_norm(W_list) : -nan |  loss + frob_norm(W_list) : -nan
+"MY ITERATION" : MY ITERATION |  itr : 18 |  loss : -nan |  frob_norm(W_list) : -nan |  loss + frob_norm(W_list) : -nan
+"MY ITERATION" : MY ITERATION |  itr : 19 |  loss : -nan |  frob_norm(W_list) : -nan |  loss + frob_norm(W_list) : -nan
+

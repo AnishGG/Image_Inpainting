@@ -11,8 +11,6 @@ using namespace std;
 #define sz(a) (int)(a).size()
 #define pii pair<int, int>
 #define pll pair<ll, ll>
-//#define x first
-//#define y second
 
 #define TRACE
 #ifdef TRACE
@@ -30,9 +28,9 @@ void __f(const char* names, Arg1&& arg1, Args&&... args){
 #endif
 
 int N, m, n;
-const double lambda = 1e-4, rho = 0.05, beta = 0.01, epsilon = 1e-10;
+const double lambda = 1e-4, rho = 0.5, beta = 0.01, epsilon = 1e-10;
 const double inv_epsilon = 1e10;
-const int T = 10, MAX_BFGS = 10;
+const int T = 20, MAX_BFGS = 10;
 
 double sigmoid(double x){
     double e = exp((double) x);
@@ -78,11 +76,13 @@ double ms_error(vvd &u, vvd &v){
     assert(sz(u) == sz(v));
     double ret = 0;
     rep(i, 0, sz(u)){
+        assert(sz(u[i]) == sz(v[i]));
         int siz = sz(u[i]); 
         assert(siz == sz(v[i]));
         vd err(siz);
-        rep(j, 0, siz)
+        rep(j, 0, siz){
             err[j] = u[i][j] - v[i][j];
+        }
         ret += norm(err) / 2;
     }
     ret /= (double)N;
@@ -108,23 +108,6 @@ double recon_loss(vector<vector<double> > &h){
     return ret;
 }
 
-/*
-double fin_error(vector<vector<double> > &y, vector<vector<double> > &y_x, vector<vector<vector<double> > > &W_list){
-    assert(sz(y) == sz(y_x));
-    double N = sz(y);
-    double ms_err = 0;
-    rep(i, 0, sz(y)){
-        ms_err += ms_error(y[i], y_x[i]);
-    }
-    ms_err /= N;
-    double frob_err = 0;
-    for(auto W: W_list){
-        frob_err += frob_norm(W); 
-    }
-    frob_err *= (lambda / 2);
-    return ms_err + frob_err;
-}
-*/
 void input(vector<vector<double> > &W1, vector<vector<double> > &W2, vector<double> &b1, vector<double> &b2, vector<vector<double> > &x, vector<vector<double> > &y){
     double temp;
     rep(i, 0, N){
@@ -197,16 +180,46 @@ double error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     double loss = 0; 
     vvd *v, h[2];
     v = &x;
-    int cnt = 0;
+    bool cnt = 0;
     for(int i = 0;i < sz(W_list); i++){
         get(h[cnt], W_list[i], *v, b_list[i]);
         v = &h[cnt];
-        cnt = (cnt + 1) % 2;
+        cnt = 1 - cnt;
         if(sda) h[cnt].clear();
     }
     loss += ms_error(y, *v);
+    /*trace("ms_error", loss);
+    trace("X h[1-cnt] Y[x]");
+    rep(i, 0, sz(x)){
+        rep(j, 0, sz(x[i]))
+            trace(i, j, x[i][j]);
+        rep(j, 0, sz(h[1-cnt][i]))
+            trace(i, j, h[1-cnt][i][j]);
+        rep(j, 0, sz(h[cnt][i]))
+            trace(i, j, h[cnt][i][j]);
+    }*/
     if(!sda)
-        loss += recon_loss(h[(cnt+1)%2]);
+        loss += recon_loss(h[cnt])/*, trace("recon_loss:", loss)*/;
+    return loss;
+}
+
+double try_error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+    double loss = 0; 
+    vvd h_x, y_x;
+    get(h_x, W_list[0], x, b_list[0]);
+    get(y_x, W_list[1], h_x, b_list[1]);
+    loss += ms_error(y, y_x);
+    trace("ms_error", loss);
+    trace("X h[1-cnt] Y[x]");
+    rep(i, 0, sz(x)){
+        rep(j, 0, sz(x[i]))
+            trace(i, j, x[i][j]);
+        rep(j, 0, sz(h_x[i]))
+            trace(i, j, h_x[i][j]);
+        rep(j, 0, sz(y_x[i]))
+            trace(i, j, y_x[i][j]);
+    }
+    loss += recon_loss(h_x);
     return loss;
 }
 
@@ -222,9 +235,10 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 elem += delta; 
                 double new_loss = error(W_list, b_list, y, x, sda);
                 elem -= delta;
-                double grad = (inv_epsilon / elem) * (new_loss - loss) + 2*elem;
+                double grad = (inv_epsilon / elem) * (new_loss - loss) + 2*elem;    // TO CHANGE TO 2
                 if(push)
                     gd.PB(0);
+                //trace(cnt, elem, new_loss, loss, inv_epsilon, grad);
                 gd[cnt++] = grad;
             }
         }
@@ -238,6 +252,7 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 double grad = (inv_epsilon / elem) * (new_loss - loss);
                 if(push)
                     gd.PB(0);
+                //trace(cnt, elem, new_loss, loss, inv_epsilon, grad);
                 gd[cnt++] = grad;
         }
     }
@@ -272,26 +287,21 @@ void point_wise(vd &ret, vd &x, vd &y, double c){
 void bfgsMultiply(vvd &S, vvd &Y, vd &d){
     int num_itr = sz(S);
     vd alpha;
+    double gamma = 0;
     rep(i, num_itr, 1){
         double alpha_i, rho_i;
         rho_i = 1 / dot_product(S[i], Y[i]);
-        trace("rho_i", rho_i);
         alpha_i = rho_i * dot_product(S[i], d); 
-        trace("alpha_i", alpha_i);
         alpha.PB(alpha_i);
         vec_sum(d, 1, d, -alpha_i, Y[i]);
     }
-    trace("Size of S:", num_itr);
+    gamma = dot_product(S[num_itr - 1], Y[num_itr - 1]) / dot_product(Y[num_itr - 1], Y[num_itr - 1]);
+    vec_sum(d, -gamma, d, 0, d);
     rep(i, 1, num_itr){
         double beta, rho_i; 
         rho_i = 1 / dot_product(S[i], Y[i]);
-        trace("rho_i2", rho_i);
         beta = rho_i * dot_product(Y[i], d);
-        trace("beta", beta);
         vec_sum(d, 1, d, (alpha[i] - beta), S[i]);
-        trace("S and Y and d");
-        rep(j, 0, sz(S[i]))
-            trace(i, j, S[i][j], Y[i][j], d[j]);
     }
 }
 
@@ -304,44 +314,24 @@ void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     feature(U[use], W_list, b_list);
 
     loss = error(W_list, b_list, y, x, sda);
-    trace(loss, frob_norm(W_list));
     gradient(gd[use], W_list, b_list, y, x, loss, sda);
 
     for(auto i: gd[use])  d.PB(i);
 
     for(int itr = 0, idx = -1; itr != T; itr++){
-        trace("here is gd");
-        for(auto i: gd[use])  trace(i);
-        /*trace("here is d");
-        for(auto i: d) trace(i);*/
         vec_sum(U[1 - use], 1, U[use], -alpha, d);
-        // tracing
-        /*trace("previous", itr);
-        for(auto W: W_list){
-            for(auto row: W){
-                for(auto elem: row){
-                    trace("elem", elem);
-                }
-            }
-        }*/
         inverse_feature(U[1 - use], W_list, b_list);
-        /*trace("updated", itr);
-        for(auto W: W_list){
-            for(auto row: W){
-                for(auto elem: row){
-                    trace("elem", elem);
-                }
-            }
-        }*/
 
+
+        trace("MY ITERATION", itr, loss, frob_norm(W_list), loss + frob_norm(W_list));
+        /*rep(i, 0, sz(U[1-use]))
+            trace(U[1-use][i], U[use][i], d[i]);*/
         loss = error(W_list, b_list, y, x, sda);
-        trace(loss, frob_norm(W_list));
-
-        /*trace("U");
-        rep(i, 0, sz(U[1 - use]))
-            trace(U[use][i], U[1 - use][i], gd[use][i]);*/
 
         gradient(gd[1 - use], W_list, b_list, y, x, loss, sda);
+
+        /*rep(i, 0, sz(U[1-use]))
+            trace(itr, i, gd[1-use][i]);*/
 
         if(itr >= MAX_BFGS)
             S.erase(S.begin()), Y.erase(Y.begin());
@@ -349,16 +339,9 @@ void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
             idx++;
         S.PB(vector<double>(0)), Y.PB(vector<double>(0));   // As this is n+1th 
 
-        trace("1", itr);
         vec_sum(S[idx+1], 1, U[1 - use], -1, U[use]);
-        trace("2", itr);
         vec_sum(Y[idx+1], 1, gd[1 - use], -1, gd[use]);
-        trace(idx, sz(S[idx]), sz(S[idx+1]), sz(Y[idx]), sz(Y[idx+1]));
 
-        /*trace("S and Y");
-        rep(i, 0, sz(S[idx+1])){
-            trace(S[idx+1][i], Y[idx+1][i]);
-        }*/
          
         bfgsMultiply(S, Y, d); 
         use = 1 - use;
@@ -368,30 +351,14 @@ void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
 int main(){
     cin >> m >> n;
     cin >> N;
-    vvd W1, W2, x, y, h_x, y_x, b_list;
-    vd b1, b2, U, gd;
+    vvd W1, W2, x, y, b_list;
+    vd b1, b2;
     input(W1, W2, b1, b2, x, y);
 
-    get(h_x, W1, x, b1);
-    get(y_x, W2, h_x, b2);
     vvvd W_list;
     W_list.PB(W1), W_list.PB(W2);
     b_list.PB(b1), b_list.PB(b2);
     lbfgs(W_list, b_list, y, x, 0);
-    //feature(U, W_list, b_list);
-
-    // Printing 
-    /*trace(ms_error(y, y_x));
-    trace(frob_norm(W_list));
-    trace(recon_loss(h_x));
-    trace("U");
-    for(auto i: U)
-        trace(i);
-    trace(sz(U));
-    gradient(gd, W_list, b_list, y, x, error(W_list, b_list, y, x, 0), 0);
-    trace("gradient");
-    for(auto i: gd)
-        trace(i);*/
     
     return 0;
 }
