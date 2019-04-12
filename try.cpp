@@ -103,7 +103,7 @@ double recon_loss(vector<vector<double> > &h){
 
     double ret = 0;
     for(auto x: rho_cap){
-        ret += (rho * log(rho/x) + (1 - rho) * log((1 - rho) / (1 - x))); 
+        ret += (rho * log(rho/x) + (1 - rho) * log((1 - rho) / (1 - x)));   // PUT RHO VALUES HERE AGAIN
     }
     return ret;
 }
@@ -176,7 +176,7 @@ void inverse_feature(vd &U, vvvd &W_list, vvd &b_list){
     }
 }
 
-double error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+double error(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     double loss = 0; 
     vvd *v, h[2];
     v = &x;
@@ -305,10 +305,30 @@ void bfgsMultiply(vvd &S, vvd &Y, vd &d){
     }
 }
 
+/* Not passing the address for W_list and b_list, as a copy is needed */
+double backtrack_line_search(vd &d, vd &U, vd &gd, vvvd W_list, vvd b_list, vvd &y, vvd &x, bool sda, double loss){
+    double c = 0.1, tau = 0.8, alpha = 1;
+    double t = c * dot_product(d, gd); 
+    bool converge = false;
+    vd temp;
+    int max_itr = 20;
+    while(!converge && max_itr){
+        vec_sum(temp, 1, U, -alpha, d); 
+        inverse_feature(temp, W_list, b_list);
+        double new_loss = error(W_list, b_list, y, x, sda);
+        if(loss - new_loss >= alpha*t)
+            converge = true;
+        else
+            alpha *= tau;
+        max_itr--;
+    }
+    return alpha;
+}
+
 void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     vvd S, Y;
     vd d, U[2], gd[2];
-    double loss = 0, alpha = 0.000001;
+    double loss = 0, alpha;
     bool converged = 0, use = 0;
     S.PB(vector<double>(0)), Y.PB(vector<double>(0));
     feature(U[use], W_list, b_list);
@@ -319,6 +339,8 @@ void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     for(auto i: gd[use])  d.PB(i);
 
     for(int itr = 0, idx = -1; itr != T; itr++){
+        alpha = backtrack_line_search(d, U[use], gd[use], W_list, b_list, y, x, sda, loss);
+
         vec_sum(U[1 - use], 1, U[use], -alpha, d);
         inverse_feature(U[1 - use], W_list, b_list);
 

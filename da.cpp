@@ -193,7 +193,7 @@ void inverse_feature(vd &U, vvvd &W_list, vvd &b_list){
     }
 }
 
-double error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+double error(vvvd& W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     double loss = 0; 
     vvd *v, h[2];
     v = &x;
