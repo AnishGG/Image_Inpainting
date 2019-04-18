@@ -11,8 +11,6 @@ using namespace std;
 #define sz(a) (int)(a).size()
 #define pii pair<int, int>
 #define pll pair<ll, ll>
-//#define x first
-//#define y second
 
 #define TRACE
 #ifdef TRACE
@@ -30,9 +28,9 @@ void __f(const char* names, Arg1&& arg1, Args&&... args){
 #endif
 
 int N, m, n;
-const double lambda = 1e-4, rho = 0.05, beta = 0.01, epsilon = 1e-10;
+const double lambda = 1e-4, rho = 0.5, beta = 0.01, epsilon = 1e-10;
 const double inv_epsilon = 1e10;
-const int T = 10, MAX_BFGS = 10;
+const int T = 20, MAX_BFGS = 10;
 
 double sigmoid(double x){
     double e = exp((double) x);
@@ -43,7 +41,7 @@ double sigmoid(double x){
 void get(vvd &res, vvd &W, vvd &x, vector<double> &b){
     int num_r = W.size(), num_c = W[0].size();
     assert(num_c == sz(x[0]));
-    rep(i, 0, N){
+    rep(i, 0, sz(x)){
         res.PB(vector<double>(0));
         for(int row = 0;row < num_r; row++){
             res[i].PB(b[row]);
@@ -78,11 +76,13 @@ double ms_error(vvd &u, vvd &v){
     assert(sz(u) == sz(v));
     double ret = 0;
     rep(i, 0, sz(u)){
+        assert(sz(u[i]) == sz(v[i]));
         int siz = sz(u[i]); 
         assert(siz == sz(v[i]));
         vd err(siz);
-        rep(j, 0, siz)
+        rep(j, 0, siz){
             err[j] = u[i][j] - v[i][j];
+        }
         ret += norm(err) / 2;
     }
     ret /= (double)N;
@@ -103,29 +103,12 @@ double recon_loss(vector<vector<double> > &h){
 
     double ret = 0;
     for(auto x: rho_cap){
-        ret += (rho * log(rho/x) + (1 - rho) * log((1 - rho) / (1 - x))); 
+        ret += (rho * log(rho/x) + (1 - rho) * log((1 - rho) / (1 - x)));   // PUT RHO VALUES HERE AGAIN
     }
     return ret;
 }
 
-/*
-double fin_error(vector<vector<double> > &y, vector<vector<double> > &y_x, vector<vector<vector<double> > > &W_list){
-    assert(sz(y) == sz(y_x));
-    double N = sz(y);
-    double ms_err = 0;
-    rep(i, 0, sz(y)){
-        ms_err += ms_error(y[i], y_x[i]);
-    }
-    ms_err /= N;
-    double frob_err = 0;
-    for(auto W: W_list){
-        frob_err += frob_norm(W); 
-    }
-    frob_err *= (lambda / 2);
-    return ms_err + frob_err;
-}
-*/
-void input(vector<vector<double> > &W1, vector<vector<double> > &W2, vector<double> &b1, vector<double> &b2, vector<vector<double> > &x, vector<vector<double> > &y){
+void input(vvd &W1, vvd &W2, vvd &W3, vvd &W4, vd &b1, vd &b2, vd &b3, vd &b4, vvd &x, vvd &y){
     double temp;
     rep(i, 0, N){
         x.PB(vector<double>(0));
@@ -156,12 +139,47 @@ void input(vector<vector<double> > &W1, vector<vector<double> > &W2, vector<doub
         }
     }
     rep(i, 0, m){
+        W3.PB(vector<double>(0));
+        rep(j, 0, n){
+            cin >> temp;
+            W3[i].PB(temp);
+        }
+    }
+    rep(i, 0, n){
+        W4.PB(vector<double>(0));
+        rep(j, 0, m){
+            cin >> temp;
+            W4[i].PB(temp);
+        }
+    }
+    rep(i, 0, m){
         cin >> temp;
         b1.PB(temp);
     }
     rep(i, 0, n){
         cin >> temp;
         b2.PB(temp);
+    }
+    rep(i, 0, m){
+        cin >> temp;
+        b3.PB(temp);
+    }
+    rep(i, 0, n){
+        cin >> temp;
+        b4.PB(temp);
+    }
+}
+
+void predict_input(vvd &z, int n){
+    double temp;
+    int num_input;
+    cin >> num_input;
+    rep(i, 0, num_input){
+        z.PB(vector<double>(0));
+        rep(j, 0, n){ 
+            cin >> temp;
+            z[i].PB(temp);
+        }
     }
 }
 
@@ -193,20 +211,50 @@ void inverse_feature(vd &U, vvvd &W_list, vvd &b_list){
     }
 }
 
-double error(vvvd& W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+double error(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     double loss = 0; 
     vvd *v, h[2];
     v = &x;
-    int cnt = 0;
+    bool cnt = 0;
     for(int i = 0;i < sz(W_list); i++){
         get(h[cnt], W_list[i], *v, b_list[i]);
         v = &h[cnt];
-        cnt = (cnt + 1) % 2;
+        cnt = 1 - cnt;
         if(sda) h[cnt].clear();
     }
     loss += ms_error(y, *v);
+    /*trace("ms_error", loss);
+    trace("X h[1-cnt] Y[x]");
+    rep(i, 0, sz(x)){
+        rep(j, 0, sz(x[i]))
+            trace(i, j, x[i][j]);
+        rep(j, 0, sz(h[1-cnt][i]))
+            trace(i, j, h[1-cnt][i][j]);
+        rep(j, 0, sz(h[cnt][i]))
+            trace(i, j, h[cnt][i][j]);
+    }*/
     if(!sda)
-        loss += recon_loss(h[(cnt+1)%2]);
+        loss += recon_loss(h[cnt])/*, trace("recon_loss:", loss)*/;
+    return loss;
+}
+
+double try_error(vvvd W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
+    double loss = 0; 
+    vvd h_x, y_x;
+    get(h_x, W_list[0], x, b_list[0]);
+    get(y_x, W_list[1], h_x, b_list[1]);
+    loss += ms_error(y, y_x);
+    trace("ms_error", loss);
+    trace("X h[1-cnt] Y[x]");
+    rep(i, 0, sz(x)){
+        rep(j, 0, sz(x[i]))
+            trace(i, j, x[i][j]);
+        rep(j, 0, sz(h_x[i]))
+            trace(i, j, h_x[i][j]);
+        rep(j, 0, sz(y_x[i]))
+            trace(i, j, y_x[i][j]);
+    }
+    loss += recon_loss(h_x);
     return loss;
 }
 
@@ -222,9 +270,10 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 elem += delta; 
                 double new_loss = error(W_list, b_list, y, x, sda);
                 elem -= delta;
-                double grad = (inv_epsilon / elem) * (new_loss - loss) + 2*elem;
+                double grad = (inv_epsilon / elem) * (new_loss - loss) + 2*elem;    // TO CHANGE TO 2
                 if(push)
                     gd.PB(0);
+                //trace(cnt, elem, new_loss, loss, inv_epsilon, grad);
                 gd[cnt++] = grad;
             }
         }
@@ -238,21 +287,36 @@ void gradient(vd &gd, vvvd &W_list, vvd &b_list, vvd &y, vvd &x, double loss, bo
                 double grad = (inv_epsilon / elem) * (new_loss - loss);
                 if(push)
                     gd.PB(0);
+                //trace(cnt, elem, new_loss, loss, inv_epsilon, grad);
                 gd[cnt++] = grad;
         }
     }
 }
 
+__global__ void parallel_vec_sum(double *ret, double a, double *x, double b, double *y){
+    int tid = threadIdx.x; 
+    ret[tid] = a * x[tid] + b * y[tid];
+}
+
 void vec_sum(vd &ret, double a, vd &x, double b, vd &y){
-    assert(sz(x) == sz(y));
-    bool push = 0;
+    double *p_ret, *p_a, *p_x, *p_b, *p_y;
+    int siz = sz(x) * sizeof(double);
+    // Allow space for device copies
+    cudaMalloc((void **) &p_ret, siz);
+    cudaMalloc((void **) &p_x, siz);
+    cudaMalloc((void **) &p_y, siz);
+    cudaMalloc((void **) &p_a, sizeof(double));
+    cudaMalloc((void **) &p_b, sizeof(double));
+    // Copy inputs to device
+    cudaMemcpy(p_x, x, siz, cudaMemcpyHostToDevice)
+    cudaMemcpy(p_y, y, siz, cudaMemcpyHostToDevice)
+    cudaMemcpy(p_a, a, sizeof(double), cudaMemcpyHostToDevice)
+    cudaMemcpy(p_b, b, sizeof(double), cudaMemcpyHostToDevice)
     if(sz(ret) == 0)
-        push = 1;
-    rep(i, 0, sz(x)){
-        if(push)
-            ret.PB(0);
-        ret[i] = a * x[i] + b * y[i];
-    }
+        ret.resize(sz(x));
+    parallel_vec_sum(p_ret, p_a, p_x, p_b, p_y);
+
+    cudaMemcpy(ret, p_ret, siz, cudaMemcpyDeviceToHost)
 }
 
 double dot_product(vd &x, vd &y){
@@ -262,86 +326,76 @@ double dot_product(vd &x, vd &y){
     return ret;
 }
 
-void point_wise(vd &ret, vd &x, vd &y, double c){
-    assert(sz(x) == sz(y));
-    rep(i, 0, sz(x)){
-        ret.PB(x[i]*y[i]*c);
-    }
-}
-
 void bfgsMultiply(vvd &S, vvd &Y, vd &d){
     int num_itr = sz(S);
     vd alpha;
+    double gamma = 0;
     rep(i, num_itr, 1){
         double alpha_i, rho_i;
         rho_i = 1 / dot_product(S[i], Y[i]);
-        trace("rho_i", rho_i);
         alpha_i = rho_i * dot_product(S[i], d); 
-        trace("alpha_i", alpha_i);
         alpha.PB(alpha_i);
         vec_sum(d, 1, d, -alpha_i, Y[i]);
     }
-    trace("Size of S:", num_itr);
+    gamma = dot_product(S[num_itr - 1], Y[num_itr - 1]) / dot_product(Y[num_itr - 1], Y[num_itr - 1]);
+    vec_sum(d, -gamma, d, 0, d);
     rep(i, 1, num_itr){
         double beta, rho_i; 
         rho_i = 1 / dot_product(S[i], Y[i]);
-        trace("rho_i2", rho_i);
         beta = rho_i * dot_product(Y[i], d);
-        trace("beta", beta);
         vec_sum(d, 1, d, (alpha[i] - beta), S[i]);
-        trace("S and Y and d");
-        rep(j, 0, sz(S[i]))
-            trace(i, j, S[i][j], Y[i][j], d[j]);
     }
+}
+
+/* Not passing the address for W_list and b_list, as a copy is needed */
+double backtrack_line_search(vd &d, vd &U, vd &gd, vvvd W_list, vvd b_list, vvd &y, vvd &x, bool sda, double loss){
+    double c = 0.1, tau = 0.8, alpha = 1;
+    double t = c * dot_product(d, gd); 
+    bool converge = false;
+    vd temp;
+    int max_itr = 20;
+    while(!converge && max_itr){
+        vec_sum(temp, 1, U, -alpha, d); 
+        inverse_feature(temp, W_list, b_list);
+        double new_loss = error(W_list, b_list, y, x, sda);
+        if(loss - new_loss >= alpha*t)
+            converge = true;
+        else
+            alpha *= tau;
+        max_itr--;
+    }
+    return alpha;
 }
 
 void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
     vvd S, Y;
     vd d, U[2], gd[2];
-    double loss = 0, alpha = 0.000001;
+    double loss = 0, alpha;
     bool converged = 0, use = 0;
     S.PB(vector<double>(0)), Y.PB(vector<double>(0));
     feature(U[use], W_list, b_list);
 
     loss = error(W_list, b_list, y, x, sda);
-    trace(loss, frob_norm(W_list));
     gradient(gd[use], W_list, b_list, y, x, loss, sda);
 
     for(auto i: gd[use])  d.PB(i);
 
     for(int itr = 0, idx = -1; itr != T; itr++){
-        trace("here is gd");
-        for(auto i: gd[use])  trace(i);
-        /*trace("here is d");
-        for(auto i: d) trace(i);*/
+        alpha = backtrack_line_search(d, U[use], gd[use], W_list, b_list, y, x, sda, loss);
+
         vec_sum(U[1 - use], 1, U[use], -alpha, d);
-        // tracing
-        /*trace("previous", itr);
-        for(auto W: W_list){
-            for(auto row: W){
-                for(auto elem: row){
-                    trace("elem", elem);
-                }
-            }
-        }*/
         inverse_feature(U[1 - use], W_list, b_list);
-        /*trace("updated", itr);
-        for(auto W: W_list){
-            for(auto row: W){
-                for(auto elem: row){
-                    trace("elem", elem);
-                }
-            }
-        }*/
 
+
+        trace("MY ITERATION", itr, loss, frob_norm(W_list), loss + frob_norm(W_list));
+        /*rep(i, 0, sz(U[1-use]))
+            trace(U[1-use][i], U[use][i], d[i]);*/
         loss = error(W_list, b_list, y, x, sda);
-        trace(loss, frob_norm(W_list));
-
-        /*trace("U");
-        rep(i, 0, sz(U[1 - use]))
-            trace(U[use][i], U[1 - use][i], gd[use][i]);*/
 
         gradient(gd[1 - use], W_list, b_list, y, x, loss, sda);
+
+        /*rep(i, 0, sz(U[1-use]))
+            trace(itr, i, gd[1-use][i]);*/
 
         if(itr >= MAX_BFGS)
             S.erase(S.begin()), Y.erase(Y.begin());
@@ -349,49 +403,80 @@ void lbfgs(vvvd &W_list, vvd &b_list, vvd &y, vvd &x, bool sda){
             idx++;
         S.PB(vector<double>(0)), Y.PB(vector<double>(0));   // As this is n+1th 
 
-        trace("1", itr);
         vec_sum(S[idx+1], 1, U[1 - use], -1, U[use]);
-        trace("2", itr);
         vec_sum(Y[idx+1], 1, gd[1 - use], -1, gd[use]);
-        trace(idx, sz(S[idx]), sz(S[idx+1]), sz(Y[idx]), sz(Y[idx+1]));
 
-        /*trace("S and Y");
-        rep(i, 0, sz(S[idx+1])){
-            trace(S[idx+1][i], Y[idx+1][i]);
-        }*/
          
         bfgsMultiply(S, Y, d); 
         use = 1 - use;
     }
 }
 
+void predict(vvd &ret, vvd &x, vvvd &W_list, vvd &b_list){
+    vvd *v, h[2];
+    v = &x;
+    bool cnt = 0;
+    for(int i = 0;i < sz(W_list); i++){
+        trace(sz(W_list[i]), sz(*v), sz(b_list[i]));
+        get(h[cnt], W_list[i], *v, b_list[i]);
+        v = &h[cnt];
+        cnt = 1 - cnt;
+        h[cnt].clear();
+    }
+    for(auto row: h[1-cnt]){
+        ret.PB(row);
+    }
+    trace("## PRINTING PREDICTED VALUE ##");
+    for(auto row: ret){
+        for(auto elem: row){
+            cout << elem << " ";
+        }
+        cout << endl;
+    }
+}
+
 int main(){
     cin >> m >> n;
     cin >> N;
-    vvd W1, W2, x, y, h_x, y_x, b_list;
-    vd b1, b2, U, gd;
-    input(W1, W2, b1, b2, x, y);
+    vvd W1, W2, W3, W4, x, y, b_list1;
+    vd b1, b2, b3, b4;
+    input(W1, W2, W3, W4, b1, b2, b3, b4, x, y);
 
-    get(h_x, W1, x, b1);
-    get(y_x, W2, h_x, b2);
+    vvvd W_list1;
+    W_list1.PB(W1), W_list1.PB(W2);
+    b_list1.PB(b1), b_list1.PB(b2);
+    lbfgs(W_list1, b_list1, y, x, 0);
+
+    vvd h1_x, h1_y, b_list2;
+    vvvd W_list2;
+    get(h1_x, W1, x, b1);
+    get(h1_y, W1, y, b1);
+
+    W_list2.PB(W2), W_list2.PB(W3);
+    b_list2.PB(b2), b_list2.PB(b3);
+    lbfgs(W_list2, b_list2, h1_y, h1_x, 0);
+    vvvd W_list3;
+    vvd h2_x, h2_y, b_list3;
+    get(h2_x, W2, h1_x, b2);
+    get(h2_y, W2, h1_y, b2);
+
+    W_list3.PB(W3), W_list3.PB(W4);
+    b_list3.PB(b3), b_list3.PB(b4);
+    lbfgs(W_list3, b_list3, h2_y, h2_x, 0);
+
+
     vvvd W_list;
-    W_list.PB(W1), W_list.PB(W2);
-    b_list.PB(b1), b_list.PB(b2);
-    lbfgs(W_list, b_list, y, x, 0);
-    //feature(U, W_list, b_list);
+    vvd b_list;
+    W_list.insert(W_list.end(), W_list1.begin(), W_list1.end());
+    W_list.insert(W_list.end(), W_list3.begin(), W_list3.end());
+    b_list.insert(b_list.end(), b_list1.begin(), b_list1.end());
+    b_list.insert(b_list.end(), b_list3.begin(), b_list3.end());
+    lbfgs(W_list, b_list, y, x, 1);
 
-    // Printing 
-    /*trace(ms_error(y, y_x));
-    trace(frob_norm(W_list));
-    trace(recon_loss(h_x));
-    trace("U");
-    for(auto i: U)
-        trace(i);
-    trace(sz(U));
-    gradient(gd, W_list, b_list, y, x, error(W_list, b_list, y, x, 0), 0);
-    trace("gradient");
-    for(auto i: gd)
-        trace(i);*/
+    vvd z, ret;
+    predict_input(z, n);
+    predict(ret, z, W_list, b_list);
+     
     
     return 0;
 }

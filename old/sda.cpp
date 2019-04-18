@@ -312,13 +312,6 @@ double dot_product(vd &x, vd &y){
     return ret;
 }
 
-void point_wise(vd &ret, vd &x, vd &y, double c){
-    assert(sz(x) == sz(y));
-    rep(i, 0, sz(x)){
-        ret.PB(x[i]*y[i]*c);
-    }
-}
-
 void bfgsMultiply(vvd &S, vvd &Y, vd &d){
     int num_itr = sz(S);
     vd alpha;
