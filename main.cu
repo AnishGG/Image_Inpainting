@@ -1,4 +1,6 @@
 #include<stdio.h>
+#include <curand.h>
+#include <curand_kernel.h>
 #include<stdlib.h>
 
 __global__ void fxn(double *W, double *X, double *Y, double *b1, double *b2, double *h, double *Z, double *loss){
@@ -6,12 +8,18 @@ __global__ void fxn(double *W, double *X, double *Y, double *b1, double *b2, dou
     int td = threadIdx.x, bd = blockIdx.x;
     double lambda = 0.01;
     if(bd == 0){
+        curandState state;
         for(int i = 0;i < n; i++){
-            W[m*i + td] = 0.1; 
+            curand_init(clock64(), i, 0, &state);
+            W[m*i + td] = curand_uniform(&state);
+            //W[m*i + td] = 0.1; 
         }
-        b1[td] = 0.1;       // RANDOM VALUES HERE
-        if(td < n)
-            b2[td] = 0.1;
+        b1[td] = curand_uniform(&state);
+        //b1[td] = 0.1;       // RANDOM VALUES HERE
+        if(td < n){
+            //b2[td] = 0.1;
+            b2[td] = curand_uniform(&state);
+        }
     }
     // PUT CUDA BARRIER
     __syncthreads();
@@ -62,14 +70,14 @@ __global__ void fxn(double *W, double *X, double *Y, double *b1, double *b2, dou
         __syncthreads();
 
         // eta needs to be declared and grad needs to be found here
-        if(bd == 0){
+/*        if(bd == 0){
             for(int i = 0;i < n; i++){
                 W[m*i + td] -= eta * grad
             }
             b1[td] -= eta * grad;
             if(td < n)
                 b2[td] -= eta * grad;
-        }
+        }*/
         // ITERATION COMPLETE
     }
 }
