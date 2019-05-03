@@ -380,10 +380,6 @@ int main(){
     for(int i = 0;i < N*m; i++)
         printf("%lf ", h[i]);*/
 
-    // Print the loss vector
-    printf("LOSS\n");
-    for(int i = 0;i < T; i++)
-        printf("%lf ", loss[i]);
 
     /******* TESTING IMAGE ***********/
     cudaMemcpy(d_X, test_img, sizeof(double) * N * n, cudaMemcpyHostToDevice);
@@ -396,7 +392,7 @@ int main(){
     // Print the Z vector
     printf("\nZ\n");
     for(int i = 0;i < N*n; i++)
-        printf("%lf ", Z[i]);
+        printf("%0.12lf ", Z[i]);
     printf("\n");
 
     // Free device memory
