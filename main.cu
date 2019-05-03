@@ -256,7 +256,7 @@ void train(int N, int m, int n, double *d_X, double *d_Y, double *d_Z, double *d
 /* Function to calculate the result of the test image as 
    supplied by the user in order to test it
    */
-void test(int N, int m, int n, double *d_X, double *d_Y, double *d_Z, double *d_W1, double *d_W2, double *d_b1, double *d_b2, double *d_h, double *d_loss, double *d_W3, double *d_b3, double *d_hh, double *d_W4, double *d_b4, double *d_hhh){
+void test(int N, int m, int n, double *d_X, double *d_Z, double *d_W1, double *d_W2, double *d_b1, double *d_b2, double *d_h, double *d_loss, double *d_W3, double *d_b3, double *d_hh, double *d_W4, double *d_b4, double *d_hhh){
     dim3 threads(m, n), threads_T(n, m);
 
     /* calculate first layer */
@@ -276,13 +276,16 @@ void test(int N, int m, int n, double *d_X, double *d_Y, double *d_Z, double *d_
     cudaDeviceSynchronize();
 
     // calculating loss of test
-    calc_loss2<<<N, threads>>>(d_Z, d_Y, d_W1, d_W2, d_W3, d_W4, d_loss); 
+    // Uncomment for checking what your loss is
+    // calc_loss2<<<N, threads>>>(d_Z, d_Y, d_W1, d_W2, d_W3, d_W4, d_loss); 
 }
 
 int main(){
     int N, m, n, T;
-    N = 3, m = 4, n = m/2, T = 10;
+    scanf("%d %d %d", &N, &n, &m);
+    T = 10;
     double *X, *Y, *h, *Z, *loss;
+    double *test_img;
 
     // CPU memory utilized here
     X = (double*)malloc(N*n*sizeof(double));
@@ -290,6 +293,7 @@ int main(){
     h = (double*)malloc(N*m*sizeof(double));
     Z = (double*)malloc(N*n*sizeof(double));
     loss = (double*)malloc(T * sizeof(double));
+    test_img = (double*)malloc(N*n*sizeof(double));
 
     // device memory
     // first pre train variables
@@ -338,6 +342,12 @@ int main(){
         printf("%lf\n", Y[i]);
     }
 
+    // Scanning the test image
+    for(int i = 0;i < N*n; i++){
+        scanf("%lf", &test_img[i]);
+        printf("%lf\n", test_img[i]);
+    }
+
     // Copy X and Y vectors to device memory
     cudaMemcpy(d_X, X, sizeof(double) * N * n, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Y, Y, sizeof(double) * N * n, cudaMemcpyHostToDevice);
@@ -365,24 +375,29 @@ int main(){
     // Copy loss back from device memory to CPU memory
     cudaMemcpy(loss, d_loss, sizeof(double) * T, cudaMemcpyDeviceToHost);
 
-    // Copy Z vecotr back from device memory to CPU memory
-    cudaMemcpy(Z, d_Z, sizeof(double) * N * n, cudaMemcpyDeviceToHost);
-
     // Print the h vector
-    printf("h\n");
+    /*printf("h\n");
     for(int i = 0;i < N*m; i++)
-        printf("%lf ", h[i]);
-
-    // Print the Z vector
-    printf("\nZ");
-    for(int i = 0;i < N*n; i++)
-        printf("%lf ", Z[i]);
-    printf("\n");
+        printf("%lf ", h[i]);*/
 
     // Print the loss vector
     printf("LOSS\n");
     for(int i = 0;i < T; i++)
         printf("%lf ", loss[i]);
+
+    /******* TESTING IMAGE ***********/
+    cudaMemcpy(d_X, test_img, sizeof(double) * N * n, cudaMemcpyHostToDevice);
+    test(N, m, n, d_X, d_Z, d_W1, d_W2, d_b1, d_b2, d_h, d_loss, d_W3, d_b3, d_hh, d_W4, d_b4, d_hhh); 
+    /********************************/
+
+    // Copy Z vecotr back from device memory to CPU memory
+    cudaMemcpy(Z, d_Z, sizeof(double) * N * n, cudaMemcpyDeviceToHost);
+
+    // Print the Z vector
+    printf("\nZ\n");
+    for(int i = 0;i < N*n; i++)
+        printf("%lf ", Z[i]);
+    printf("\n");
 
     // Free device memory
     cudaFree(d_W1); cudaFree(d_W2); cudaFree(d_b1); cudaFree(d_b2);
