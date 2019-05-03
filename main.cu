@@ -5,17 +5,10 @@
 
 /* Thread structure: 1, m*n
    */
-__global__ void init(double *W1, double *W2, double *b1, double *b2){
+__global__ void init(double *W){
     int mx = threadIdx.x, nx = threadIdx.y;
-    int m = blockDim.x, n = blockDim.y;
-    W1[m*nx + mx] = 0.1;
-    W2[n*mx + nx] = 0.1;
-    if(nx == 0){ 
-        b1[mx] = 0.1;
-    }   
-    if(mx == 0){ 
-        b2[nx] = 0.1;
-    }   
+    int m = blockDim.x;/*, n = blockDim.y;*/
+    W[m*nx + mx] = 0.1;
 }
 
 /* Thread structure: N, m*n
@@ -73,24 +66,31 @@ void checkCUDAError(const char* msg) {
     }
 }
 
-void pre_train(int m, int n, double *d_X, double *d_Y, double *d_Z, double *d_W1, double *d_W2, double *d_b1, double *d_b2, double *d_h, double *d_loss){
-    int T = 10, N = 3;
+void pre_train(int N, int m, int n, double *d_X, double *d_Y, double *d_Z, double *d_W1, double *d_W2, double *d_b1, double *d_b2, double *d_h, double *d_loss, int which_itr){
+    int T = 10;
     dim3 threads(m, n), threads_T(n, m); 
-    init<<<1, threads>>>(d_W1, d_W2, d_b1, d_b2);
+
+    // Only first iteration needs initialization of these vectors
+    if(which_itr == 0){
+        init<<<1, threads>>>(d_W1);
+        init<<<1, m>>>(d_b1);
+    }
+    init<<<1, threads_T>>>(d_W2);
+    init<<<1, n>>>(d_b2);
     cudaDeviceSynchronize();
 
     for(int t = 0;t < T; t++){
         printf("Iteration number: %d\n", t);
         next_layer<<<N, threads>>>(d_X, d_h, d_W1, d_b1);
-        checkCUDAError("memory copy in next_layer");
+        //checkCUDAError("memory copy in next_layer");
         cudaDeviceSynchronize();
         next_layer<<<N, threads_T>>>(d_h, d_Z, d_W2, d_b2);
         cudaDeviceSynchronize();
-        checkCUDAError("memory copy in second next_layer");
+        //checkCUDAError("memory copy in second next_layer");
 
         calc_loss<<<N, threads>>>(d_Z, d_Y, d_W1, d_W2, d_loss + t);
         cudaDeviceSynchronize();
-        checkCUDAError("memory copy in calc_loss");
+        //checkCUDAError("memory copy in calc_loss");
     }
 }
 
@@ -107,8 +107,10 @@ int main(){
 
     // device memory
     double *d_X, *d_Y, *d_W1, *d_W2, *d_b1, *d_b2, *d_h, *d_loss, *d_Z;
-    double *d_hY, *d_hZ, *d_W3, *d_W4, *d_b3, *d_b4;
-    double *d_hhY, *d_hhZ;
+    double *d_hY, *d_hZ, *d_W3, *d_W4, *d_b3, *d_b4, *d_hh;
+    double *d_hhY, *d_hhZ, *d_hhh;
+
+    // first pre train
     cudaMalloc((void**)&d_W1, sizeof(double) * n * m);
     cudaMalloc((void**)&d_W2, sizeof(double) * m * n);
     cudaMalloc((void**)&d_X, sizeof(double) * N * n);
@@ -119,6 +121,20 @@ int main(){
     cudaMalloc((void**)&d_h, sizeof(double) * N * m);
     cudaMalloc((void**)&d_loss, sizeof(double) * T);
 
+    // second pre train
+    cudaMalloc((void**)&d_hY, sizeof(double) * N * m);
+    cudaMalloc((void**)&d_hZ, sizeof(double) * N * m);
+    cudaMalloc((void**)&d_W3, sizeof(double) * n * m);
+    cudaMalloc((void**)&d_b3, sizeof(double) * m);
+    cudaMalloc((void**)&d_hh, sizeof(double) * N * n);
+
+    // third pre train
+    cudaMalloc((void**)&d_hhY, sizeof(double) * N * n);
+    cudaMalloc((void**)&d_hhZ, sizeof(double) * N * n);
+    cudaMalloc((void**)&d_W4, sizeof(double) * m * n);
+    cudaMalloc((void**)&d_b4, sizeof(double) * n);
+    cudaMalloc((void**)&d_hhh, sizeof(double) * N * m);
+     
     for(int i = 0; i < N*n; i++){
         scanf("%lf", &X[i]);
         printf("%lf\n", X[i]);
@@ -131,13 +147,25 @@ int main(){
     cudaMemcpy(d_X, X, sizeof(double) * N * n, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Y, Y, sizeof(double) * N * n, cudaMemcpyHostToDevice);
 
-    pre_train(m, n, d_X, d_Y, d_Z, d_W1, d_W2, d_b1, d_b2, d_h, d_loss);
-    //pre_train(n, m, d
+    dim3 threads_T(n, m), threads(m, n);
+
+    // first pre train
+    pre_train(N, m, n, d_X, d_Y, d_Z, d_W1, d_W2, d_b1, d_b2, d_h, d_loss, 0);
+
+    // calculate hY
+    next_layer<<<N, threads_T>>>(d_Y, d_hY, d_W1, d_b1);
+    // second pre train
+    pre_train(N, n, m, d_h, d_hY, d_hZ, d_W2, d_W3, d_b2, d_b3, d_hh, d_loss, 1);
+
+    // calculate hhY
+    next_layer<<<N, threads>>>(d_hY, d_hhY, d_W2, d_b2);
+    // third pre train
+    pre_train(N, m, n, d_hh, d_hhY, d_hhZ, d_W3, d_W4, d_b3, d_b4, d_hhh, d_loss, 2);
 
     cudaMemcpy(h, d_h, sizeof(double) * N * m, cudaMemcpyDeviceToHost);
-    checkCUDAError("memory copy in h");
+    //checkCUDAError("memory copy in h");
     cudaMemcpy(loss, d_loss, sizeof(double) * T, cudaMemcpyDeviceToHost);
-    checkCUDAError("memory copy in loss");
+    //checkCUDAError("memory copy in loss");
     cudaMemcpy(Z, d_Z, sizeof(double) * N * n, cudaMemcpyDeviceToHost);
     printf("h\n");
     for(int i = 0;i < N*m; i++)
